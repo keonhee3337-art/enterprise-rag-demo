@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>컨설팅 리서치 어시스턴트 — RAG 데모</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f7;
+      color: #1a1a2e;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #0d1b3e;
+      color: white;
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid #0ab4bf;
+    }
+    header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.3px; }
+    header span { font-size: 12px; color: #0ab4bf; font-weight: 500; }
+    .badge {
+      background: #1e6fd9;
+      color: white;
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      gap: 0;
+    }
+
+    /* ── Chat panel ── */
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: white;
+      border-right: 1px solid #dde3f0;
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .message { display: flex; flex-direction: column; gap: 4px; }
+    .message.user { align-items: flex-end; }
+    .message.assistant { align-items: flex-start; }
+
+    .bubble {
+      max-width: 75%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .message.user .bubble {
+      background: #0d1b3e;
+      color: white;
+      border-bottom-right-radius: 3px;
+    }
+    .message.assistant .bubble {
+      background: #f0f2f7;
+      color: #1a1a2e;
+      border-bottom-left-radius: 3px;
+      border-left: 3px solid #0ab4bf;
+    }
+
+    .meta { font-size: 11px; color: #888; padding: 0 4px; }
+
+    .welcome {
+      text-align: center;
+      padding: 60px 20px;
+      color: #666;
+    }
+    .welcome h2 { font-size: 20px; color: #0d1b3e; margin-bottom: 10px; }
+    .welcome p { font-size: 13px; line-height: 1.6; max-width: 420px; margin: 0 auto 20px; }
+
+    .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .suggestion {
+      background: #f0f2f7;
+      border: 1px solid #dde3f0;
+      border-radius: 20px;
+      padding: 8px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #0d1b3e;
+      transition: background 0.15s;
+    }
+    .suggestion:hover { background: #e0e5f0; }
+
+    /* ── Input ── */
+    .input-area {
+      padding: 16px 24px;
+      border-top: 1px solid #dde3f0;
+      display: flex;
+      gap: 10px;
+      background: white;
+    }
+    .input-area input {
+      flex: 1;
+      padding: 11px 16px;
+      border: 1.5px solid #dde3f0;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .input-area input:focus { border-color: #1e6fd9; }
+    .input-area button {
+      padding: 11px 22px;
+      background: #1e6fd9;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .input-area button:hover { background: #1558b0; }
+    .input-area button:disabled { background: #aac4e8; cursor: not-allowed; }
+
+    /* ── Right panel ── */
+    .right-panel {
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      background: #f8f9fc;
+    }
+
+    .panel-section {
+      border-bottom: 1px solid #dde3f0;
+      padding: 16px 18px;
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    /* Sources */
+    .sources-list { display: flex; flex-direction: column; gap: 8px; }
+    .source-card {
+      background: white;
+      border: 1px solid #dde3f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      border-left: 3px solid #0ab4bf;
+    }
+    .source-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .source-name { font-size: 11px; font-weight: 600; color: #1e6fd9; }
+    .source-score {
+      font-size: 10px;
+      background: #e8f0fb;
+      color: #1e6fd9;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .source-text { font-size: 11px; color: #555; line-height: 1.5; }
+
+    .no-sources { font-size: 12px; color: #aaa; font-style: italic; }
+
+    /* Session */
+    .session-info { display: flex; flex-direction: column; gap: 6px; }
+    .session-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .session-label { color: #888; }
+    .session-value { font-weight: 600; color: #0d1b3e; }
+    .session-id-display {
+      font-size: 10px;
+      color: #aaa;
+      font-family: monospace;
+      word-break: break-all;
+      margin-top: 4px;
+    }
+
+    /* Architecture note */
+    .arch-note {
+      padding: 16px 18px;
+      flex: 1;
+    }
+    .arch-steps { display: flex; flex-direction: column; gap: 8px; }
+    .arch-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 12px;
+      color: #555;
+    }
+    .arch-step.active { color: #0d1b3e; font-weight: 600; }
+    .step-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #dde3f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+      color: #888;
+    }
+    .arch-step.active .step-dot {
+      background: #1e6fd9;
+      color: white;
+    }
+
+    /* Loading */
+    .loading { display: flex; align-items: center; gap: 8px; padding: 10px 0; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #1e6fd9; animation: bounce 1.2s infinite; }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>컨설팅 리서치 어시스턴트</h1>
+    <span>RAG 데모 &nbsp;·&nbsp; FastAPI + Pinecone + Supabase + GPT-4o</span>
+  </div>
+  <span class="badge">라이브 데모</span>
+</header>
+
+<div class="layout">
+
+  <!-- Chat Panel -->
+  <div class="chat-panel">
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <h2>AI 전략에 대해 무엇이든 물어보세요</h2>
+        <p>이 어시스턴트는 사전 로드된 리서치 데이터베이스에서 관련 정보를 검색하고, 해당 맥락을 기반으로 답변을 생성하며, 사용된 출처를 표시합니다.</p>
+        <div class="suggestions">
+          <div class="suggestion" onclick="ask(this.textContent)">2026년 에이전틱 AI의 핵심 트렌드는 무엇인가요?</div>
+          <div class="suggestion" onclick="ask(this.textContent)">MCP는 어떻게 작동하며 왜 중요한가요?</div>
+          <div class="suggestion" onclick="ask(this.textContent)">LangGraph와 CrewAI를 기업 활용 측면에서 비교해주세요</div>
+          <div class="suggestion" onclick="ask(this.textContent)">에이전틱 AI의 기업 도입 준비 격차는 무엇인가요?</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <input
+        type="text"
+        id="queryInput"
+        placeholder="AI 전략에 대해 질문하세요..."
+        onkeydown="if(event.key==='Enter') sendMessage()"
+      />
+      <button id="sendBtn" onclick="sendMessage()">전송</button>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+
+    <div class="panel-section">
+      <div class="panel-title">검색된 출처</div>
+      <div class="sources-list" id="sourcesList">
+        <div class="no-sources">첫 번째 질문 후 출처가 표시됩니다.</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">세션 메모리</div>
+      <div class="session-info">
+        <div class="session-row">
+          <span class="session-label">이번 세션 대화 수</span>
+          <span class="session-value" id="turnCount">0</span>
+        </div>
+        <div class="session-row">
+          <span class="session-label">저장 방식</span>
+          <span class="session-value">Supabase</span>
+        </div>
+        <div class="session-id-display" id="sessionIdDisplay">세션 없음</div>
+      </div>
+    </div>
+
+    <div class="arch-note">
+      <div class="panel-title">작동 원리</div>
+      <div class="arch-steps" id="archSteps">
+        <div class="arch-step" id="step1">
+          <div class="step-dot">1</div>
+          <span>질문 임베딩 (OpenAI text-embedding-3-small)</span>
+        </div>
+        <div class="arch-step" id="step2">
+          <div class="step-dot">2</div>
+          <span>Pinecone 검색 — 상위 4개 관련 청크 검색</span>
+        </div>
+        <div class="arch-step" id="step3">
+          <div class="step-dot">3</div>
+          <span>Supabase에서 대화 히스토리 로드</span>
+        </div>
+        <div class="arch-step" id="step4">
+          <div class="step-dot">4</div>
+          <span>GPT-4o로 근거 기반 답변 생성</span>
+        </div>
+        <div class="arch-step" id="step5">
+          <div class="step-dot">5</div>
+          <span>Supabase에 대화 저장</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const BACKEND = window.location.origin;
+  let sessionId = "";
+
+  async function sendMessage() {
+    const input = document.getElementById("queryInput");
+    const query = input.value.trim();
+    if (!query) return;
+    input.value = "";
+    await ask(query);
+  }
+
+  async function ask(query) {
+    document.getElementById("welcome")?.remove();
+
+    const messages = document.getElementById("messages");
+    const sendBtn = document.getElementById("sendBtn");
+    const queryInput = document.getElementById("queryInput");
+
+    // User message
+    appendMessage("user", query);
+
+    // Loading indicator
+    const loadingId = "loading-" + Date.now();
+    const loadingEl = document.createElement("div");
+    loadingEl.className = "message assistant";
+    loadingEl.id = loadingId;
+    loadingEl.innerHTML = `<div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div><span style="font-size:12px;color:#888;margin-left:6px">검색 중...</span></div>`;
+    messages.appendChild(loadingEl);
+    messages.scrollTop = messages.scrollHeight;
+
+    sendBtn.disabled = true;
+    queryInput.disabled = true;
+
+    // Animate architecture steps
+    animateSteps();
+
+    try {
+      const res = await fetch(`${BACKEND}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, session_id: sessionId }),
+      });
+
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+
+      sessionId = data.session_id;
+
+      // Remove loading, add answer
+      document.getElementById(loadingId)?.remove();
+      appendMessage("assistant", data.answer, `${data.sources.length}개 출처 검색됨`);
+
+      // Update sources panel
+      updateSources(data.sources);
+
+      // Update session info
+      document.getElementById("turnCount").textContent = data.turn_count;
+      document.getElementById("sessionIdDisplay").textContent = sessionId.substring(0, 20) + "...";
+
+    } catch (err) {
+      document.getElementById(loadingId)?.remove();
+      appendMessage("assistant", `오류: ${err.message}. 백엔드가 ${BACKEND}에서 실행 중인지 확인하세요.`);
+    }
+
+    resetSteps();
+    sendBtn.disabled = false;
+    queryInput.disabled = false;
+    queryInput.focus();
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function appendMessage(role, text, metaText) {
+    const messages = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = `message ${role}`;
+    div.innerHTML = `
+      <div class="bubble">${escapeHtml(text)}</div>
+      ${metaText ? `<div class="meta">${metaText}</div>` : ""}
+    `;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function updateSources(sources) {
+    const list = document.getElementById("sourcesList");
+    if (!sources || sources.length === 0) {
+      list.innerHTML = `<div class="no-sources">검색된 출처가 없습니다.</div>`;
+      return;
+    }
+    list.innerHTML = sources.map(s => `
+      <div class="source-card">
+        <div class="source-meta">
+          <span class="source-name">${escapeHtml(s.source)}</span>
+          <span class="source-score">${s.score}</span>
+        </div>
+        <div class="source-text">${escapeHtml(s.text.substring(0, 160))}...</div>
+      </div>
+    `).join("");
+  }
+
+  function animateSteps() {
+    let i = 1;
+    const interval = setInterval(() => {
+      for (let j = 1; j <= 5; j++) {
+        document.getElementById(`step${j}`)?.classList.remove("active");
+      }
+      if (i <= 5) {
+        document.getElementById(`step${i}`)?.classList.add("active");
+        i++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 600);
+  }
+
+  function resetSteps() {
+    for (let j = 1; j <= 5; j++) {
+      document.getElementById(`step${j}`)?.classList.remove("active");
+    }
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+  }
+</script>
+</body>
+</html>
