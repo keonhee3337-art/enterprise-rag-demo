@@ -1,10 +1,9 @@
 """
-main.py — FastAPI backend for the Kearney RAG Demo.
-Run: uvicorn demo.backend.main:app --reload --port 8000
+main.py — FastAPI backend for the Enterprise RAG Demo.
 """
 import os
 import uuid
-import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -27,8 +26,6 @@ app.add_middleware(
 )
 
 
-# ── Request / Response models ──────────────────────────────────
-
 class ChatRequest(BaseModel):
     query: str
     session_id: str = ""
@@ -47,10 +44,8 @@ class ChatResponse(BaseModel):
     turn_count: int
 
 
-FRONTEND = Path(__file__).parent.parent / "frontend" / "index.html"
+FRONTEND = Path(__file__).parent / "frontend" / "index.html"
 
-
-# ── Endpoints ──────────────────────────────────────────────────
 
 @app.get("/")
 def serve_frontend():
@@ -59,7 +54,7 @@ def serve_frontend():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "Kearney RAG Demo"}
+    return {"status": "ok", "service": "Enterprise RAG Demo"}
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -68,19 +63,10 @@ def chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     session_id = req.session_id or str(uuid.uuid4())
-
-    # 1. Retrieve relevant chunks from Pinecone
     chunks = search(req.query, top_k=4)
-
-    # 2. Load conversation history for context continuity
     history = get_history(session_id)
-
-    # 3. Generate grounded answer via GPT-4o
     answer = generate_answer(req.query, chunks, history)
-
-    # 4. Persist this turn to Supabase
     save_turn(session_id, req.query, answer, chunks)
-
     summary = get_session_summary(session_id)
 
     return ChatResponse(
